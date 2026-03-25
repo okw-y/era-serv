@@ -1,10 +1,11 @@
-from enum import Enum
-from sqlalchemy import Column, String, Integer, ForeignKey, JSON, BigInteger, Text
+import enum
+
+from sqlalchemy import Column, String, Integer, ForeignKey, JSON, BigInteger, Text, Boolean, Enum
 
 from app.database import Base
 
 
-class MetaType(str, Enum):
+class MetaType(str, enum.Enum):
     GROUP_AVATAR = "group_avatar"
     GROUP_NAME = "group_name"
     GROUP_BIO = "group_bio"
@@ -17,11 +18,47 @@ class MetaType(str, Enum):
     USER_LAST_READ = "user_last_read"
 
 
+class PrivacyType(enum.Enum):
+    ALL = "all"
+    FRIENDS = "friends"
+    NONE = "none"
+
+
+class MemberType(enum.Enum):
+    MEMBER = "member"
+    ADMIN = "admin"
+    OWNER = "owner"
+
+
+class FriendshipType(enum.Enum):
+    PENDING = "pending"
+    ACCEPT = "accept"
+
+
 class User(Base):
     __tablename__ = "users"
 
     public_key = Column(String, primary_key=True, index=True)  # ED25519, HEX
     created_at = Column(Integer)
+
+    is_public = Column(Boolean)
+
+    avatar_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
+    bio_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
+    last_online_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    public_key = Column(
+        String, ForeignKey("users.public_key"), primary_key=True, index=True
+    )
+
+    name = Column(String)
+    bio = Column(String)
+    avatar_id = Column(String)
+    last_online = Column(Integer)
 
 
 class Room(Base):
@@ -29,6 +66,23 @@ class Room(Base):
 
     id = Column(String, primary_key=True, index=True)
     owner_pub_key = Column(String, ForeignKey("users.public_key"))
+
+    is_dm = Column(Boolean, default=False)
+
+    name = Column(String)
+    description = Column(String)
+    photo_id = Column(String)
+
+    created_at = Column(Integer)
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+
+    user_a = Column(String, ForeignKey("users.public_key"))
+    user_b = Column(String, ForeignKey("users.public_key"))
+
+    status = Column(Enum(FriendshipType), default=FriendshipType.PENDING)
 
 
 class Member(Base):
@@ -41,6 +95,11 @@ class Member(Base):
 
     pub_room_key = Column(Text)
     pub_room_cerf = Column(Text, nullable=True)
+
+    role = Column(Enum(MemberType), default=MemberType.MEMBER)
+    sign = Column(String)
+
+    last_read = Column(Integer)
 
 
 class Message(Base):

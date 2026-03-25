@@ -13,7 +13,7 @@ from app.models import Message
 from app.routers import rooms, media, chat
 from app.database import engine, Base, AsyncSessionLocal
 
-app = FastAPI(title="paranoya")
+app = FastAPI(title="era")
 
 
 async def clean_old_messages():
@@ -30,6 +30,8 @@ async def clean_old_messages():
 
         except Exception as error:
             print(f"cleanup error: {error}")
+
+        # TODO: check file is avatar
 
         start_time = time.time()
         start_path = os.environ["UPLOADS_LOCATION"]

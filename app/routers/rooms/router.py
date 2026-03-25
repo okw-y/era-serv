@@ -1,11 +1,12 @@
-import hashlib
+import os.path
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from .models import *
+from .utils import *
 
 from app.database import get_db
 from app.models import Room, Member, Message, MemberType
@@ -13,45 +14,6 @@ from app.security import verify_signature
 
 
 router = APIRouter(prefix="/rooms")
-
-
-def generate_msg_id(room_pub_key: str, timestamp: int) -> int:
-    hash_obj = hashlib.sha256(
-        f"{room_pub_key}{timestamp}".encode()
-    ).hexdigest()
-
-    return int(hash_obj, 16) % (2 ** 63 - 1)
-
-
-class CreateRoomRequest(BaseModel):
-    room_id: str
-
-    pub_key: str
-    pub_key_cerf: str
-
-    is_dm: bool = False
-
-
-class ApplyRequest(BaseModel):
-    room_id: str
-    pub_room_key: str
-
-    data: str
-    key: str
-
-
-class ApproveRequest(BaseModel):
-    room_id: str
-
-    pub_key: str
-    pub_key_cerf: str
-
-
-class AddMemberRequest(BaseModel):
-    room_id: str
-
-    pub_key: str
-    pub_key_cerf: str
 
 
 @router.post("/create")
@@ -88,6 +50,51 @@ async def create_room(
 
     db.add(room)
     db.add(member)
+
+    await db.commit()
+
+    return {
+        "status": "ok"
+    }
+
+
+@router.post("/meta")
+async def meta_room(
+        request: MetaRequest,
+        sender_pub_key: str = Depends(verify_signature),
+        db: AsyncSession = Depends(get_db)
+) -> dict[str, str]:
+    room = await db.get(Room, request.room_id)
+    if not room:
+        raise HTTPException(404, "Room was not found!")
+
+    admin_query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.acc_key == sender_pub_key
+    )
+    admin_response = await db.execute(admin_query)
+
+    admin = admin_response.scalar_one_or_none()
+    if not admin or admin.role not in (MemberType.OWNER, MemberType.ADMIN):
+        raise HTTPException(403, "Not authorized to change room meta!")
+
+    if name := request.name:
+        if len(name) > 32:
+            raise HTTPException(403, "Max room name length = 32!")
+
+        room.name = name
+
+    if description := request.description:
+        if len(description) > 256:
+            raise HTTPException(403, "Max room description length = 256!")
+
+        room.description = description
+
+    if photo_id := request.photo_id:
+        if not os.path.exists(os.path.join(os.environ["UPLOADS_LOCATION"], photo_id)):
+            raise HTTPException(403, "Photo was not found!")
+
+        room.photo_id = photo_id
 
     await db.commit()
 
@@ -175,6 +182,115 @@ async def approve_member(
         raise HTTPException(404, "Application not found or already approved!")
 
     member.pub_room_cerf = request.pub_key_cerf
+
+    await db.commit()
+
+    return {
+        "status": "ok"
+    }
+
+
+@router.post("/kick")
+async def kick_member(
+        request: KickRequest,
+        sender_pub_key: str = Depends(verify_signature),
+        db: AsyncSession = Depends(get_db)
+):
+    admin_query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.acc_key == sender_pub_key
+    )
+    admin_response = await db.execute(admin_query)
+
+    admin = admin_response.scalar_one_or_none()
+    if not admin or admin.role not in (MemberType.OWNER, MemberType.ADMIN):
+        raise HTTPException(403, "Not authorized to kick!")
+
+    query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.pub_room_key == request.pub_key
+    )
+    response = await db.execute(query)
+
+    member = response.scalar_one_or_none()
+    if not member:
+        raise HTTPException(404, "Member not found!")
+
+    await db.delete(member)
+
+    return {
+        "status": "ok"
+    }
+
+
+@router.post("/promote")
+async def promote_member(
+        request: PromoteRequest,
+        sender_pub_key: str = Depends(verify_signature),
+        db: AsyncSession = Depends(get_db)
+):
+    admin_query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.acc_key == sender_pub_key
+    )
+    admin_response = await db.execute(admin_query)
+
+    admin = admin_response.scalar_one_or_none()
+    if not admin or admin.role != MemberType.OWNER:
+        raise HTTPException(403, "Not authorized to promote!")
+
+    if request.role not in (MemberType.MEMBER, MemberType.ADMIN):
+        raise HTTPException(403, "Incorrect member type!")
+
+    query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.pub_room_key == request.pub_key
+    )
+    response = await db.execute(query)
+
+    member = response.scalar_one_or_none()
+    if not member and member.pub_room_cerf is None:
+        raise HTTPException(404, "Member not found!")
+
+    member.role = request.role
+
+    await db.commit()
+
+    return {
+        "status": "ok"
+    }
+
+
+@router.post("/sign")
+async def sign_member(
+        request: SignRequest,
+        sender_pub_key: str = Depends(verify_signature),
+        db: AsyncSession = Depends(get_db)
+):
+    admin_query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.acc_key == sender_pub_key
+    )
+    admin_response = await db.execute(admin_query)
+
+    admin = admin_response.scalar_one_or_none()
+    if not admin or admin.role not in (MemberType.OWNER, MemberType.ADMIN):
+        raise HTTPException(403, "Not authorized to sign member!")
+
+    if len(request.sign) > 16:
+        raise HTTPException(403, "Max sign length = 16!")
+
+    query = select(Member).where(
+        Member.room_id == request.room_id,
+        Member.pub_room_key == request.pub_key
+    )
+    response = await db.execute(query)
+
+    member = response.scalar_one_or_none()
+    if not member:
+        raise HTTPException(404, "Member not found!")
+
+    member.sign = request.sign
 
     await db.commit()
 
