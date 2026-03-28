@@ -28,8 +28,12 @@ async def verify_signature(request: Request, db: AsyncSession = Depends(get_db))
     except ValueError:
         raise HTTPException(400, "Invalid timestamp!")
 
-    body_bytes = await request.body()
-    body_str = body_bytes.decode("utf-8")
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("multipart/form-data"):
+        body_str = ""
+    else:
+        body_bytes = await request.body()
+        body_str = body_bytes.decode("utf-8")
 
     path = request.url.path
     method = request.method.upper()
@@ -52,4 +56,5 @@ async def verify_signature(request: Request, db: AsyncSession = Depends(get_db))
         db.add(user)
 
         await db.commit()
+
     return x_public_key

@@ -45,7 +45,7 @@ class User(Base):
 
     avatar_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
     bio_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
-    last_online_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
+    last_seen_privacy = Column(Enum(PrivacyType), default=PrivacyType.NONE)
 
 
 class UserProfile(Base):
@@ -55,10 +55,12 @@ class UserProfile(Base):
         String, ForeignKey("users.public_key"), primary_key=True, index=True
     )
 
+    username = Column(String, unique=True, nullable=True)
+
     name = Column(String)
     bio = Column(String)
     avatar_id = Column(String)
-    last_online = Column(Integer)
+    last_seen = Column(Integer)
 
 
 class Room(Base):
@@ -132,3 +134,19 @@ class RoomMeta(Base):
     meta_type = Column(String, index=True)
 
     updated_at = Column(BigInteger)
+
+
+class Upload(Base):
+    __tablename__ = "uploads"
+
+    id = Column(String, primary_key=True, index=True)
+    path = Column(String)
+    size = Column(Integer)
+
+    acc_key = Column(String, ForeignKey("users.public_key"))
+    room_id = Column(String, ForeignKey("rooms.id"), nullable=True)
+
+    is_eternal = Column(Boolean, default=False)
+    is_encrypted = Column(Boolean, default=True)
+
+    created_at = Column(BigInteger)

@@ -54,7 +54,11 @@ async def create_room(
     await db.commit()
 
     return {
-        "status": "ok"
+        "status": "ok",
+        "data": {
+            "id": request.room_id,
+            "created_at": created_at
+        }
     }
 
 
@@ -157,7 +161,9 @@ async def apply_membership(
 
     await db.commit()
 
-    return {"status": "applied"}
+    return {
+        "status": "applied"
+    }
 
 
 @router.post("/approve")
@@ -322,4 +328,6 @@ async def leave_room(
 
     await db.commit()
 
-    return {"status": "ok"}
+    return {
+        "status": "ok"
+    }
