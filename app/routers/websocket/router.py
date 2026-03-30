@@ -129,6 +129,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             raw_data = await websocket.receive_json()
             async with AsyncSessionLocal() as db:
                 # await _handle_ws_request(db, raw_data, user_acc_key)
+                # crap that needs to be completely rewritten
                 ...
 
     except WebSocketDisconnect:
