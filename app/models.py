@@ -113,8 +113,8 @@ class Message(Base):
     sender_acc_key = Column(String, ForeignKey("users.public_key"))
     sender_pub_key = Column(String)
 
-    data = Column(Text)
-    keys = Column(JSON)
+    data = Column(Text, nullable=True)
+    keys = Column(JSON, nullable=True)
 
     created_at = Column(BigInteger)
     edited_at = Column(BigInteger)
