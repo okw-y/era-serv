@@ -1,3 +1,5 @@
+# app/routers/rooms/models.py
+
 from pydantic import BaseModel
 
 from app.models import MemberType

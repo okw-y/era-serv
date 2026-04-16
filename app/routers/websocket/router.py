@@ -1,23 +1,18 @@
-import hashlib
-import os
+# app/routers/websocket/router.py
+
 import time
 
 import nacl.signing
 import nacl.encoding
 
 from .conn_manager import manager
-
-from typing import Dict, Any, Optional, TypeVar
-from enum import Enum
+from .handlers import send, edit, delete, read, action, online, sync
+from .models import WSResponseBase, WSClientRequest
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import ValidationError
 
 from app.database import AsyncSessionLocal
-from app.models import Message, Member, RoomMeta
 
 
 router = APIRouter()
@@ -62,75 +57,64 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             return
 
-        manager.active_connections[user_acc_key] = websocket
+        session_id = await manager.connect(websocket, user_acc_key)
 
-        await websocket.send_json(
-            {
-                "action": "auth",
-                "status": "ok",
-                "data": ""
-            }
+        await manager.answer(user_acc_key, session_id,
+            WSResponseBase(
+                action="auth",
+                status="ok"
+            )
         )
-
-        async with AsyncSessionLocal() as db:
-            initial_payload = {}
-
-            subquery = select(
-                Member.room_id
-            ).where(Member.acc_key == user_acc_key)
-
-            members_query = select(Member).where(
-                Member.room_id.in_(subquery), Member.pub_room_cerf.is_not(None)
-            )
-            members_response = await db.execute(members_query)
-
-            for member in members_response.scalars().all():
-                if (room_id := member.room_id) not in initial_payload:
-                    initial_payload[room_id] = {
-                        "meta": {
-                            "name": "", "avatar": "", "bio": ""
-                        }, "members": {}
-                    }
-
-                initial_payload[room_id]["members"][member.pub_room_key] = {
-                    "name": "",
-                    "avatar": "",
-                    "bio": "",
-
-                    "last_online": "",
-                    "last_read": "",
-
-                    "cerf": member.pub_room_cerf
-                }
-
-            meta_query = select(RoomMeta).where(
-                RoomMeta.room_id.in_(subquery)
-            )
-            meta_response = await db.execute(meta_query)
-
-            for meta in meta_response.scalars().all():
-                room_id = meta.room_id
-
-                meta_gou, meta_type = meta.meta_type.split("_", maxsplit=1)
-                if meta_gou == "group":
-                    initial_payload[room_id]["meta"][meta_type] = meta.data
-                else:
-                    initial_payload[room_id]["members"][meta.target_user_id][meta_type] = meta.data
-
-            await websocket.send_json(
-                {
-                    "action": "initial_payload",
-                    "status": "ok",
-                    "data": initial_payload
-                }
-            )
 
         while True:
             raw_data = await websocket.receive_json()
+
+            try:
+                request_model = WSClientRequest.model_validate(raw_data)
+            except ValidationError as error:
+                await manager.answer(user_acc_key, session_id,
+                    WSResponseBase(
+                        action="error",
+                        status="error",
+                        data={
+                            "text": "Invalid WS Payload",
+                            "details": str(error)
+                        }
+                    )
+                )
+
+                continue
+
             async with AsyncSessionLocal() as db:
-                # await _handle_ws_request(db, raw_data, user_acc_key)
-                # crap that needs to be completely rewritten
-                ...
+                match request_model.action:
+                    case "send":
+                        await send.handle_send_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
+                    case "edit":
+                        await edit.handle_edit_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
+                    case "delete":
+                        await delete.handle_delete_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
+                    case "read":
+                        await read.handle_read_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
+                    case "action":
+                        await action.handle_action_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
+                    case "online":
+                        await online.handle_online_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
+                    case "sync":
+                        await sync.handle_sync_request(
+                            request_model, db, user_acc_key, request_model.request_id, session_id
+                        )
 
     except WebSocketDisconnect:
         if user_acc_key:

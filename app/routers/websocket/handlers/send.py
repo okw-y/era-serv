@@ -1,3 +1,5 @@
+# app/routers/websocket/handlers/send.py
+
 import time
 
 from ..conn_manager import manager, broadcast_message_to_room
@@ -39,7 +41,7 @@ async def handle_send_request(
         return
 
     timestamp = int(time.time())
-    message_id = generate_msg_id(data.sender, timestamp)
+    message_id = generate_msg_id(member.pub_room_key, timestamp)
 
     message = Message(
         id=message_id,

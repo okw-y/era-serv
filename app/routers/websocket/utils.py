@@ -1,3 +1,5 @@
+# app/routers/websocket/utils.py
+
 import hashlib
 import os
 

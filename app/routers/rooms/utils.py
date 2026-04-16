@@ -1,3 +1,5 @@
+# app/routers/rooms/utils.py
+
 import hashlib
 
 

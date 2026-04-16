@@ -1,3 +1,5 @@
+# app/routers/friends/models.py
+
 from pydantic import BaseModel
 
 from app.models import PrivacyType

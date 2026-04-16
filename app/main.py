@@ -1,3 +1,5 @@
+# app/main.py
+
 import asyncio
 import os
 
@@ -10,7 +12,7 @@ from fastapi import FastAPI
 from sqlalchemy import delete
 
 from app.models import Message
-from app.routers import rooms, media, chat
+from app.routers import rooms, media
 from app.database import engine, Base, AsyncSessionLocal
 
 app = FastAPI(title="era")
@@ -52,4 +54,4 @@ async def startup():
 
 app.include_router(rooms.router)
 app.include_router(media.router)
-app.include_router(chat.router)
+# app.include_router(chat.router)

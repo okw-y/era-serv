@@ -1,3 +1,5 @@
+# app/security.py
+
 import nacl.signing
 import nacl.exceptions
 import nacl.encoding
@@ -8,8 +10,7 @@ from fastapi import Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User
-
+from app.models import User, UserProfile
 
 MAX_TIMESTAMP_DIFF = 60
 
@@ -53,7 +54,10 @@ async def verify_signature(request: Request, db: AsyncSession = Depends(get_db))
         user = User(
             public_key=x_public_key, created_at=int(time.time())
         )
+        profile = UserProfile(public_key=x_public_key, name="", bio="")
+
         db.add(user)
+        db.add(profile)
 
         await db.commit()
 

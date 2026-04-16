@@ -1,3 +1,5 @@
+# app/routers/websocket/models.py
+
 from pydantic import BaseModel, Field
 from typing import Literal, Union, Dict, Any, Optional, Annotated
 
@@ -55,7 +57,7 @@ class WSActionRequest(BaseModel):
 
 
 class WSOnlineRequest(BaseModel):
-    action: Literal["action"]
+    action: Literal["online"]
 
 
 class WSSyncRequest(BaseModel):

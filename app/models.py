@@ -1,3 +1,5 @@
+# app/models.py
+
 import enum
 
 from sqlalchemy import Column, String, Integer, ForeignKey, JSON, BigInteger, Text, Boolean, Enum

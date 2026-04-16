@@ -1,3 +1,5 @@
+# app/routers/dms/router.py
+
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +11,9 @@ from .models import *
 from app.database import get_db
 from app.models import Member, Room, MemberType, User, Friendship, FriendshipType
 from app.security import verify_signature
+
+from app.routers.websocket.conn_manager import manager
+from app.routers.websocket.models import WSResponseBase
 
 
 router = APIRouter(prefix="/dms")
@@ -81,6 +86,23 @@ async def create(
 
     await db.commit()
 
+    await manager.send(request.target,
+        WSResponseBase(
+            action="broadcast:new_dms",
+            status="ok",
+            data={
+                "room_id": request.room_id,
+                "companion_id": sender_pub_key,
+                "companion_cerf": request.you_cerf,
+                "created_at": created_at
+            }
+        )
+    )
+
     return {
-        "status": "ok"
+        "status": "ok",
+        "data": {
+            "id": request.room_id,
+            "created_at": created_at
+        }
     }

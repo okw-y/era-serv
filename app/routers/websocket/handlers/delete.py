@@ -1,3 +1,5 @@
+# app/routers/websocket/handlers/delete.py
+
 import time
 
 from ..conn_manager import manager, broadcast_message_to_room
